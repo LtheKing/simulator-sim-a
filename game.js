@@ -5,8 +5,9 @@
   const LANE_LABELS = ["KIRI", "TENGAH", "KANAN"];
   const LANE_KEYS = { kiri: 0, tengah: 1, kanan: 2 };
 
-  // Success criteria: safe lane for each of 18 angular slots (1-indexed in brief → 0-indexed here)
-  const SAFE_SEQUENCE = [
+  // Success criteria: safe lane per angular slot (1-indexed in brief → 0-indexed here)
+  // Pola 18 langkah diulang hingga 34 (langkah 19–34 = ulang 1–16).
+  const SAFE_SEQUENCE_BASE = [
     "kanan",   // 1
     "kiri",    // 2
     "tengah",  // 3
@@ -25,10 +26,14 @@
     "tengah",  // 16
     "kiri",    // 17
     "tengah",  // 18
-  ].map((k) => LANE_KEYS[k]);
+  ];
 
-  const SLOT_COUNT = 18;
-  const SLOT_DEG = 360 / SLOT_COUNT; // 20°
+  const SLOT_COUNT = 34;
+  const SAFE_SEQUENCE = Array.from({ length: SLOT_COUNT }, (_, i) => {
+    const key = SAFE_SEQUENCE_BASE[i % SAFE_SEQUENCE_BASE.length];
+    return LANE_KEYS[key];
+  });
+  const SLOT_DEG = 360 / SLOT_COUNT;
 
   // Player sits at fixed angles (matching the reference image: left & right)
   // Right object (0°) uses lane as-is; left object (180°) uses mirrored lane
@@ -307,10 +312,10 @@
     overlay.hidden = false;
     if (success) {
       overlayTitle.textContent = "Berhasil!";
-      overlayMsg.textContent = `Anda lolos ${state.score}/18 celah dengan ${state.hits} tabrakan.`;
+      overlayMsg.textContent = `Anda lolos ${state.score}/${SLOT_COUNT} celah dengan ${state.hits} tabrakan.`;
     } else {
       overlayTitle.textContent = "Selesai";
-      overlayMsg.textContent = `Skor: ${state.score}/18 · Tabrakan: ${state.hits}`;
+      overlayMsg.textContent = `Skor: ${state.score}/${SLOT_COUNT} · Tabrakan: ${state.hits}`;
     }
   }
 
