@@ -31,7 +31,11 @@
   const SLOT_DEG = 360 / SLOT_COUNT; // 20°
 
   // Player sits at fixed angles (matching the reference image: left & right)
-  const PLAYER_ANGLES = [180, 0]; // 9 o'clock and 3 o'clock (canvas: 0° = right, CCW)
+  // Right object (0°) uses lane as-is; left object (180°) uses mirrored lane
+  // so both move the same screen direction when tilting.
+  const PLAYER_RIGHT = 0;
+  const PLAYER_LEFT = 180;
+  const PLAYER_ANGLES = [PLAYER_RIGHT, PLAYER_LEFT];
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
@@ -195,15 +199,20 @@
       }
     }
 
-    // Player red objects (two opposite sides)
+    // Player red objects (two opposite sides).
+    // Mirror the left object's lane so tilt-right moves BOTH dots toward screen-right:
+    // right object → outer, left object → inner (and vice versa for tilt-left).
     const playerLen = R * 0.09;
     const playerW = 6.5 * lineScale;
-    const pr = laneRadius(state.playerLane, R);
     ctx.strokeStyle = "#e11d2e";
     ctx.lineWidth = playerW;
     ctx.lineCap = "butt";
 
+    const laneForAngle = (angle) =>
+      angle === PLAYER_LEFT ? 2 - state.playerLane : state.playerLane;
+
     for (const pa of PLAYER_ANGLES) {
+      const pr = laneRadius(laneForAngle(pa), R);
       const inner = polar(cx, cy, pr - playerLen / 2, pa);
       const outer = polar(cx, cy, pr + playerLen / 2, pa);
       ctx.beginPath();
