@@ -5,9 +5,9 @@
   const LANE_LABELS = ["KIRI", "TENGAH", "KANAN"];
   const LANE_KEYS = { kiri: 0, tengah: 1, kanan: 2 };
 
-  // Success criteria: safe lane per angular slot (1-indexed in brief → 0-indexed here)
-  // Pola 18 langkah diulang hingga 34 (langkah 19–34 = ulang 1–16).
-  const SAFE_SEQUENCE_BASE = [
+  // Rumus awal: 18 posisi @ 20° (sesuai gambar & ketentuan keberhasilan).
+  // Target main: 34 lewat gerbang ≈ hampir 2 putaran (pola 18 berulang).
+  const SAFE_SEQUENCE = [
     "kanan",   // 1
     "kiri",    // 2
     "tengah",  // 3
@@ -26,14 +26,11 @@
     "tengah",  // 16
     "kiri",    // 17
     "tengah",  // 18
-  ];
+  ].map((k) => LANE_KEYS[k]);
 
-  const SLOT_COUNT = 34;
-  const SAFE_SEQUENCE = Array.from({ length: SLOT_COUNT }, (_, i) => {
-    const key = SAFE_SEQUENCE_BASE[i % SAFE_SEQUENCE_BASE.length];
-    return LANE_KEYS[key];
-  });
-  const SLOT_DEG = 360 / SLOT_COUNT;
+  const PATTERN_COUNT = SAFE_SEQUENCE.length; // 18
+  const TARGET_PASSES = 34;
+  const SLOT_DEG = 360 / PATTERN_COUNT; // 20°
 
   // Player sits at fixed angles (matching the reference image: left & right)
   // Right object (0°) uses lane as-is; left object (180°) uses mirrored lane
@@ -60,8 +57,9 @@
   const laneBtns = [...document.querySelectorAll(".lane-btn")];
 
   // Gate angle where we evaluate pass/hit (right-side object at 3 o'clock).
-  // Both red objects share the same lane; scoring uses one checkpoint.
   const GATE_ANGLE = 0;
+  // Evaluate when obstacle is within this half-window of the gate (~35% of slot).
+  const GATE_HALF_WINDOW = SLOT_DEG * 0.35; // 7°
 
   const state = {
     running: false,
@@ -70,8 +68,8 @@
     targetLane: 1,
     score: 0,
     hits: 0,
-    resolved: new Set(), // slot indices already scored this lap
-    lastSlotAtGate: null,
+    passCount: 0, // total gate crossings (hit + lolos), target 34
+    gateArmed: true, // true when outside window — ready for next crossing
     lastTs: 0,
     degPerSec: Number(speedInput.value),
     sensorActive: false,
@@ -79,13 +77,11 @@
     finished: false,
   };
 
-  // Precompute obstacles: for each slot, which lanes have a barrier
-  // Safe lane has a gap; the other two lanes have obstacles
+  // Precompute obstacles: for each of 18 slots, barriers on the two non-safe lanes
   const obstacles = SAFE_SEQUENCE.map((safeLane, slot) => {
     const lanes = [0, 1, 2].filter((l) => l !== safeLane);
     return { slot, safeLane, lanes };
   });
-
   function resize() {
     const wrap = canvas.parentElement;
     const rect = wrap.getBoundingClientRect();
@@ -124,8 +120,8 @@
   }
 
   function laneRadius(lane, R) {
-    // Inner / middle / outer track radii — supports fractional lane for smooth moves
-    const ratios = [0.38, 0.58, 0.78];
+    // Lebih longgar antar lintasan supaya celah tengah tidak terasa padat
+    const ratios = [0.34, 0.58, 0.82];
     const lo = Math.max(0, Math.min(2, Math.floor(lane)));
     const hi = Math.max(0, Math.min(2, Math.ceil(lane)));
     if (lo === hi) return R * ratios[lo];
@@ -159,7 +155,7 @@
     ctx.fill();
 
     // Track rings (black concentric lines)
-    const trackRadii = [0.38, 0.58, 0.78].map((t) => R * t);
+    const trackRadii = [0.34, 0.58, 0.82].map((t) => R * t);
     ctx.strokeStyle = "#0d0d0d";
     ctx.lineWidth = 2.2 * lineScale;
     for (const r of trackRadii) {
@@ -171,7 +167,7 @@
     // Soft guide rings between tracks
     ctx.strokeStyle = "rgba(0,0,0,0.18)";
     ctx.lineWidth = 1 * lineScale;
-    for (const t of [0.48, 0.68]) {
+    for (const t of [0.46, 0.70]) {
       ctx.beginPath();
       ctx.arc(cx, cy, R * t, 0, Math.PI * 2);
       ctx.stroke();
@@ -184,8 +180,9 @@
     ctx.fill();
 
     // Obstacles (radial black ticks), rotated CCW by state.rotation
-    const tickLen = R * 0.085;
-    const tickW = 5.5 * lineScale;
+    // Tick pendek agar celah aman di lintasan terlihat jelas (20° antar slot)
+    const tickLen = R * 0.06;
+    const tickW = 4.5 * lineScale;
     ctx.strokeStyle = "#0a0a0a";
     ctx.lineCap = "butt";
     ctx.lineWidth = tickW;
@@ -207,8 +204,8 @@
     // Player red objects (two opposite sides).
     // Mirror the left object's lane so tilt-right moves BOTH dots toward screen-right:
     // right object → outer, left object → inner (and vice versa for tilt-left).
-    const playerLen = R * 0.09;
-    const playerW = 6.5 * lineScale;
+    const playerLen = R * 0.07;
+    const playerW = 6 * lineScale;
     ctx.strokeStyle = "#e11d2e";
     ctx.lineWidth = playerW;
     ctx.lineCap = "butt";
@@ -261,10 +258,9 @@
   }
 
   function slotAtGate() {
-    // Which obstacle slot is currently nearest the gate (player checkpoint)
-    // Slot world angle = slot * 20 + rotation; we want that ≈ GATE_ANGLE
+    // Slot world angle = slot * 20° + rotation ≈ GATE_ANGLE
     const nearest = Math.round((GATE_ANGLE - state.rotation) / SLOT_DEG);
-    return ((nearest % SLOT_COUNT) + SLOT_COUNT) % SLOT_COUNT;
+    return ((nearest % PATTERN_COUNT) + PATTERN_COUNT) % PATTERN_COUNT;
   }
 
   function checkCollisions() {
@@ -273,17 +269,18 @@
     const worldAngle = normalizeAngle(obs.slot * SLOT_DEG + state.rotation);
     const diff = Math.abs(angleDiff(worldAngle, GATE_ANGLE));
 
-    // Only resolve once when a slot is tightly aligned with the gate
-    if (diff > 6) {
-      state.lastSlotAtGate = null;
+    // Di luar jendela → siap evaluasi slot berikutnya
+    if (diff > GATE_HALF_WINDOW) {
+      state.gateArmed = true;
       return;
     }
 
-    if (state.resolved.has(slot) || state.lastSlotAtGate === slot) return;
-    state.lastSlotAtGate = slot;
+    // Satu evaluasi per lewat gerbang (hindari double-count)
+    if (!state.gateArmed) return;
+    state.gateArmed = false;
 
     const hit = obs.lanes.includes(state.targetLane);
-    state.resolved.add(slot);
+    state.passCount += 1;
 
     if (hit) {
       state.hits += 1;
@@ -294,7 +291,7 @@
 
     updateHud();
 
-    if (state.resolved.size >= SLOT_COUNT) {
+    if (state.passCount >= TARGET_PASSES) {
       finish(state.hits === 0);
     }
   }
@@ -312,21 +309,21 @@
     overlay.hidden = false;
     if (success) {
       overlayTitle.textContent = "Berhasil!";
-      overlayMsg.textContent = `Anda lolos ${state.score}/${SLOT_COUNT} celah dengan ${state.hits} tabrakan.`;
+      overlayMsg.textContent = `Anda lolos ${state.score}/${TARGET_PASSES} celah dengan ${state.hits} tabrakan.`;
     } else {
       overlayTitle.textContent = "Selesai";
-      overlayMsg.textContent = `Skor: ${state.score}/${SLOT_COUNT} · Tabrakan: ${state.hits}`;
+      overlayMsg.textContent = `Skor: ${state.score}/${TARGET_PASSES} · Tabrakan: ${state.hits}`;
     }
   }
 
   function resetGame() {
     state.running = false;
-    // Start with first slot ~50° before the gate so player has reaction time
-    state.rotation = normalizeAngle(GATE_ANGLE - 50);
+    // Slot 0 mulai ~2.5 langkah sebelum gerbang (waktu reaksi)
+    state.rotation = normalizeAngle(GATE_ANGLE - SLOT_DEG * 2.5);
     state.score = 0;
     state.hits = 0;
-    state.resolved.clear();
-    state.lastSlotAtGate = null;
+    state.passCount = 0;
+    state.gateArmed = true;
     state.finished = false;
     state.lastTs = 0;
     setLane(1);
@@ -484,6 +481,6 @@
   setLane(1);
   updateHud();
   // Initial draw offset (same as reset)
-  state.rotation = normalizeAngle(GATE_ANGLE - 50);
+  state.rotation = normalizeAngle(GATE_ANGLE - SLOT_DEG * 2.5);
   resize();
 })();
