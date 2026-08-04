@@ -1,0 +1,277 @@
+:root {
+  --bg: #050505;
+  --surface: #121212;
+  --text: #f2f2f2;
+  --muted: #9a9a9a;
+  --accent: #e11d2e;
+  --primary: #3a9fd8;
+  --board: #7ec8e8;
+  --safe: #1a1a1a;
+  --line: #0a0a0a;
+  --radius: 14px;
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.header {
+  text-align: center;
+  padding-top: env(safe-area-inset-top);
+}
+
+.header h1 {
+  margin: 0;
+  font-size: clamp(1.1rem, 4.5vw, 1.35rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.hud {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.stat {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-suffix {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.lane-name {
+  color: var(--primary);
+  font-size: 0.95rem !important;
+}
+
+.stage-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+}
+
+#game {
+  width: min(92vw, 400px);
+  height: auto;
+  aspect-ratio: 1;
+  display: block;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px #1a1a1a, 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+.tilt-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.65);
+  color: #ddd;
+  font-size: 0.72rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0.9;
+  white-space: nowrap;
+}
+
+.tilt-hint.hidden {
+  display: none;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.speed-control {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.speed-control input[type="range"] {
+  width: 100%;
+  accent-color: var(--primary);
+}
+
+.btn-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.8fr;
+  gap: 8px;
+}
+
+.btn {
+  appearance: none;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  background: #2a2a2a;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #041018;
+}
+
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+}
+
+.manual {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.manual-label {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.lane-btns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.lane-btn {
+  appearance: none;
+  border: 2px solid #333;
+  background: #1a1a1a;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 14px 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.lane-btn.active {
+  border-color: var(--accent);
+  background: #3a1014;
+  color: #ffb4ba;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 20;
+}
+
+.overlay[hidden] {
+  display: none;
+}
+
+.overlay-card {
+  background: #161616;
+  border-radius: 18px;
+  padding: 28px 24px;
+  text-align: center;
+  max-width: 320px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.overlay-card h2 {
+  margin: 0 0 10px;
+  font-size: 1.4rem;
+}
+
+.overlay-card p {
+  margin: 0 0 20px;
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 0.95rem;
+}
+
+@media (min-width: 520px) {
+  .app {
+    padding-top: 24px;
+  }
+}

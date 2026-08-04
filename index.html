@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Tes Konsentrasi</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>TES KONSENTRASI</h1>
+      <p class="subtitle">Lintasan · Rintangan · Objek</p>
+    </header>
+
+    <div class="hud">
+      <div class="stat">
+        <span class="stat-label">Lolos</span>
+        <span class="stat-value" id="score">0</span><span class="stat-suffix">/18</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Tabrakan</span>
+        <span class="stat-value" id="hits">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Lintasan</span>
+        <span class="stat-value lane-name" id="laneName">TENGAH</span>
+      </div>
+    </div>
+
+    <div class="stage-wrap">
+      <canvas id="game" width="400" height="400" aria-label="Area permainan konsentrasi"></canvas>
+      <div class="tilt-hint" id="tiltHint">
+        <span>Miringkan HP kiri / kanan</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <label class="speed-control">
+        <span>Kecepatan</span>
+        <input type="range" id="speed" min="4" max="28" value="12" />
+        <span id="speedVal">12°/s</span>
+      </label>
+
+      <div class="btn-row">
+        <button type="button" id="btnPermission" class="btn btn-primary">Aktifkan Sensor</button>
+        <button type="button" id="btnStart" class="btn btn-accent" disabled>Mulai</button>
+        <button type="button" id="btnReset" class="btn">Reset</button>
+      </div>
+
+      <div class="manual" id="manual">
+        <p class="manual-label">Kontrol manual (jika sensor tidak tersedia)</p>
+        <div class="lane-btns">
+          <button type="button" class="lane-btn" data-lane="0">Kiri</button>
+          <button type="button" class="lane-btn active" data-lane="1">Tengah</button>
+          <button type="button" class="lane-btn" data-lane="2">Kanan</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="overlay" hidden>
+      <div class="overlay-card">
+        <h2 id="overlayTitle">Selesai</h2>
+        <p id="overlayMsg"></p>
+        <button type="button" class="btn btn-accent" id="btnAgain">Main Lagi</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
