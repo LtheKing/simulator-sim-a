@@ -31,6 +31,11 @@
   const PATTERN_COUNT = SAFE_SEQUENCE.length; // 18
   const TARGET_PASSES = 34;
   const SLOT_DEG = 360 / PATTERN_COUNT; // 20°
+  // Slot 0 (kanan) harus paling dekat ke gerbang dari belakang (< 1 slot),
+  // supaya tidak ada slot lain yang menabrak lebih dulu.
+  const APPROACH_DEG = SLOT_DEG * 0.75; // 15°
+  // Jeda setelah Mulai: putaran belum jalan, pemain sempat ke kanan.
+  const START_DELAY_SEC = 2.5;
 
   // Player sits at fixed angles (matching the reference image: left & right)
   // Right object (0°) uses lane as-is; left object (180°) uses mirrored lane
@@ -56,20 +61,19 @@
   const tiltHint = document.getElementById("tiltHint");
   const laneBtns = [...document.querySelectorAll(".lane-btn")];
 
-  // Gate angle where we evaluate pass/hit (right-side object at 3 o'clock).
+  // Gate angle (objek kanan di jam 3).
   const GATE_ANGLE = 0;
-  // Evaluate when obstacle is within this half-window of the gate (~35% of slot).
-  const GATE_HALF_WINDOW = SLOT_DEG * 0.35; // 7°
 
   const state = {
     running: false,
-    rotation: 0, // degrees; obstacles advance CCW
+    rotation: 0, // derajat sejak putaran dimulai (0 = posisi awal)
     playerLane: 1, // start tengah
     targetLane: 1,
     score: 0,
     hits: 0,
     passCount: 0, // total gate crossings (hit + lolos), target 34
-    gateArmed: true, // true when outside window — ready for next crossing
+    gateArmed: true,
+    runElapsed: 0, // detik sejak Mulai
     lastTs: 0,
     degPerSec: Number(speedInput.value),
     sensorActive: false,
@@ -117,6 +121,13 @@
     else v = e.gamma;
     if (v == null || Number.isNaN(v)) return null;
     return Math.max(-45, Math.min(45, v));
+  }
+
+  // Angle of obstacle slot on the board.
+  // Saat rotation=0, slot 0 ada di -APPROACH_DEG (belum sampai gerbang).
+  // Putaran CCW: slot 0,1,2… lewat gerbang berurutan setiap +20°.
+  function slotWorldAngle(slot) {
+    return state.rotation - APPROACH_DEG - slot * SLOT_DEG;
   }
 
   function laneRadius(lane, R) {
@@ -188,7 +199,7 @@
     ctx.lineWidth = tickW;
 
     for (const obs of obstacles) {
-      const baseAngle = obs.slot * SLOT_DEG + state.rotation;
+      const baseAngle = slotWorldAngle(obs.slot);
       for (const lane of obs.lanes) {
         const r = laneRadius(lane, R);
         const a = baseAngle;
@@ -257,29 +268,23 @@
     return d;
   }
 
-  function slotAtGate() {
-    // Slot world angle = slot * 20° + rotation ≈ GATE_ANGLE
-    const nearest = Math.round((GATE_ANGLE - state.rotation) / SLOT_DEG);
-    return ((nearest % PATTERN_COUNT) + PATTERN_COUNT) % PATTERN_COUNT;
-  }
-
   function checkCollisions() {
-    const slot = slotAtGate();
-    const obs = obstacles[slot];
-    const worldAngle = normalizeAngle(obs.slot * SLOT_DEG + state.rotation);
-    const diff = Math.abs(angleDiff(worldAngle, GATE_ANGLE));
+    // Belum mulai putar / masih jeda awal
+    if (state.runElapsed < START_DELAY_SEC) return;
 
-    // Di luar jendela → siap evaluasi slot berikutnya
-    if (diff > GATE_HALF_WINDOW) {
+    // Evaluasi berurutan: pass ke-i = rumus langkah (i % 18)
+    // Slot i sampai gerbang saat rotation = APPROACH_DEG + i×20°
+    const nextAt = APPROACH_DEG + state.passCount * SLOT_DEG;
+    if (state.rotation < nextAt) {
       state.gateArmed = true;
       return;
     }
-
-    // Satu evaluasi per lewat gerbang (hindari double-count)
     if (!state.gateArmed) return;
     state.gateArmed = false;
 
-    const hit = obs.lanes.includes(state.targetLane);
+    const slot = state.passCount % PATTERN_COUNT;
+    const obs = obstacles[slot];
+    const hit = state.targetLane !== obs.safeLane;
     state.passCount += 1;
 
     if (hit) {
@@ -318,12 +323,12 @@
 
   function resetGame() {
     state.running = false;
-    // Slot 0 mulai ~2.5 langkah sebelum gerbang (waktu reaksi)
-    state.rotation = normalizeAngle(GATE_ANGLE - SLOT_DEG * 2.5);
+    state.rotation = 0;
     state.score = 0;
     state.hits = 0;
     state.passCount = 0;
     state.gateArmed = true;
+    state.runElapsed = 0;
     state.finished = false;
     state.lastTs = 0;
     setLane(1);
@@ -337,6 +342,8 @@
     if (state.finished) resetGame();
     state.running = true;
     state.lastTs = 0;
+    state.runElapsed = 0;
+    state.rotation = 0;
     overlay.hidden = true;
     requestAnimationFrame(loop);
   }
@@ -347,6 +354,7 @@
     if (!state.lastTs) state.lastTs = ts;
     const dt = Math.min(0.05, (ts - state.lastTs) / 1000);
     state.lastTs = ts;
+    state.runElapsed += dt;
 
     // Smooth lane transition
     state.playerLane += (state.targetLane - state.playerLane) * Math.min(1, 14 * dt);
@@ -354,8 +362,10 @@
       state.playerLane = state.targetLane;
     }
 
-    // Rotate obstacles counter-clockwise
-    state.rotation = normalizeAngle(state.rotation + state.degPerSec * dt);
+    // Putaran CCW baru jalan setelah jeda awal
+    if (state.runElapsed >= START_DELAY_SEC) {
+      state.rotation += state.degPerSec * dt;
+    }
 
     checkCollisions();
     draw();
@@ -480,7 +490,6 @@
 
   setLane(1);
   updateHud();
-  // Initial draw offset (same as reset)
-  state.rotation = normalizeAngle(GATE_ANGLE - SLOT_DEG * 2.5);
+  state.rotation = 0;
   resize();
 })();
