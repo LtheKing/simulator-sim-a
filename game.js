@@ -78,10 +78,40 @@
   });
 
   function resize() {
-    const size = Math.min(window.innerWidth * 0.92, 400) * (window.devicePixelRatio || 1);
-    canvas.width = size;
-    canvas.height = size;
+    const wrap = canvas.parentElement;
+    const rect = wrap.getBoundingClientRect();
+    const landscape = window.matchMedia("(orientation: landscape)").matches;
+    const limit = landscape ? 520 : 400;
+    const cssSize = Math.max(
+      140,
+      Math.min(rect.width || window.innerWidth, rect.height || window.innerHeight, limit) * 0.96
+    );
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(cssSize * dpr);
+    canvas.height = Math.round(cssSize * dpr);
+    canvas.style.width = `${cssSize}px`;
+    canvas.style.height = `${cssSize}px`;
     draw();
+  }
+
+  function screenAngle() {
+    if (screen.orientation && typeof screen.orientation.angle === "number") {
+      return screen.orientation.angle;
+    }
+    if (typeof window.orientation === "number") return window.orientation;
+    return window.innerWidth > window.innerHeight ? 90 : 0;
+  }
+
+  /** Tilt kiri/kanan relatif ke layar (portrait & landscape). */
+  function screenTiltLR(e) {
+    const angle = ((screenAngle() % 360) + 360) % 360;
+    let v = null;
+    if (angle === 90) v = e.beta;
+    else if (angle === 270) v = e.beta == null ? null : -e.beta;
+    else if (angle === 180) v = e.gamma == null ? null : -e.gamma;
+    else v = e.gamma;
+    if (v == null || Number.isNaN(v)) return null;
+    return Math.max(-45, Math.min(45, v));
   }
 
   function laneRadius(lane, R) {
@@ -323,18 +353,23 @@
 
   // --- Device orientation (tilt) ---
   function handleOrientation(e) {
-    // gamma: left-right tilt (-90..90). On portrait phone, negative = tilt left
-    let gamma = e.gamma;
-    if (gamma == null) return;
+    const tilt = screenTiltLR(e);
+    if (tilt == null) return;
 
-    // Some devices report inverted; clamp
-    gamma = Math.max(-45, Math.min(45, gamma));
-    state.betaSmooth = state.betaSmooth * 0.75 + gamma * 0.25;
+    state.betaSmooth = state.betaSmooth * 0.75 + tilt * 0.25;
 
     const g = state.betaSmooth;
     if (g < -12) setLane(0); // kiri / inner
     else if (g > 12) setLane(2); // kanan / outer
     else setLane(1); // tengah
+  }
+
+  function updateTiltHint() {
+    if (!tiltHint) return;
+    const landscape = window.matchMedia("(orientation: landscape)").matches;
+    tiltHint.querySelector("span").textContent = landscape
+      ? "Miringkan HP (landscape): kiri / kanan layar"
+      : "Miringkan HP kiri / kanan";
   }
 
   async function enableSensor() {
@@ -406,8 +441,21 @@
     btnPermission.textContent = "Cek Sensor";
   }
 
-  window.addEventListener("resize", resize);
-  window.addEventListener("orientationchange", resize);
+  function onViewportChange() {
+    updateTiltHint();
+    // Delay agar browser selesai mengubah layout setelah rotate
+    requestAnimationFrame(() => {
+      resize();
+      setTimeout(resize, 250);
+    });
+  }
+
+  window.addEventListener("resize", onViewportChange);
+  window.addEventListener("orientationchange", onViewportChange);
+  if (screen.orientation) {
+    screen.orientation.addEventListener("change", onViewportChange);
+  }
+  updateTiltHint();
 
   // Prevent scroll bounce on iOS while playing
   document.body.addEventListener(
